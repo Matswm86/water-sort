@@ -15,7 +15,7 @@ const PALETTE := [
 	Color("2f5fe0"),  # blue
 	Color("f272b6"),  # pink
 	Color("8b5a2b"),  # brown
-	Color("9aa4ab"),  # grey
+	Color("8e44c9"),  # purple
 	Color("f7ead0"),  # cream
 ]
 const SAVE_PATH := "user://save.cfg"
