@@ -1,0 +1,41 @@
+name: gdlint
+
+on:
+  push:
+    paths:
+      - "**/*.gd"
+      - ".github/workflows/gdlint.yml"
+  pull_request:
+    paths:
+      - "**/*.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: gdformat + gdlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          # cache: pip — disabled, no requirements.txt in Godot repos
+      - name: Install gdtoolkit
+        run: |
+          python -m pip install --upgrade pip
+          pip install "gdtoolkit==4.*"
+      - name: gdformat --check (no auto-modify)
+        run: |
+          # Find all .gd files, exclude .godot/, addons/, and run formatter check
+          find . -name "*.gd" -not -path "./.godot/*" -not -path "./addons/*" -print0 \
+            | xargs -0 -r gdformat --check
+      - name: gdlint
+        run: |
+          find . -name "*.gd" -not -path "./.godot/*" -not -path "./addons/*" -print0 \
+            | xargs -0 -r gdlint
+        # gdlint can be noisy on existing code; non-blocking until first triage
+        continue-on-error: true

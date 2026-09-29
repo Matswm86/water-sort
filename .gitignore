@@ -1,0 +1,25 @@
+# Godot 4 generated cache and import files
+.godot/
+.import/
+*.translation
+
+# Imported binary assets
+*.import
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+build/
+
+# Godot Gradle source template (installed in CI from export templates)
+android/build/
+
+# Editor
+.vscode/
+.idea/
+*.swp

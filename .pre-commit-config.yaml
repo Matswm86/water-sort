@@ -1,0 +1,34 @@
+# Canonical pre-commit config for MWM Godot/Android repos.
+# Synced via: scripts/sync-pre-commit.sh
+# Source of truth: mwm-infrastructure/templates/pre-commit/android.yaml
+# Plan ref: plans/cicd-comprehensive-fix-plan-2026-05-07.md (Phase 1.1)
+#
+# No Python hooks — Godot 4 + GDScript projects only.
+
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        stages: [pre-commit, pre-push]
+        args: [--baseline, .secrets.baseline]
+        exclude: |
+          (?x)^(
+              \.secrets\.baseline|
+              .*\.import|
+              \.godot/.*
+          )$
