@@ -502,7 +502,9 @@ func _layout_ui() -> void:
 	var vs := get_viewport_rect().size
 	level_label.position = Vector2(0, 150)
 	level_label.size = Vector2(vs.x, 90)
-	btn_restart.position = Vector2(34, 130)
+	# Right half, beside the sound button: the top-left 232 px square stays free
+	# for the MWM Play home button.
+	btn_restart.position = Vector2(vs.x - 314, 130)
 	btn_sound.position = Vector2(vs.x - 164, 130)
 	btn_undo.position = Vector2(vs.x * 0.5 - 200, vs.y - 230)
 	btn_add.position = Vector2(vs.x * 0.5 + 40, vs.y - 230)
