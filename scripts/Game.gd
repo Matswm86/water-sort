@@ -20,6 +20,17 @@ const PALETTE := [
 ]
 const SAVE_PATH := "user://save.cfg"
 const LIFT := 42.0
+## Set by a host app (MWM Play) before this scene loads:
+## Engine.set_meta(&"mwm_play_shell", true). Inside the host the game hides its
+## own sound button and always plays, so the host's Music and Sfx buses decide
+## what is heard. Standalone the meta is absent and the game keeps its button.
+const SHELL_META := &"mwm_play_shell"
+## Touch layout at 1080 px wide: hit areas >= 12.7 mm at 430 dpi (216 px).
+const HIT := 216.0
+## Nothing tappable in the bottom wrist strip (16 mm = 256 px).
+const WRIST := 256.0
+const MAX_PER_ROW := 5
+const BOTTLES_TOP := 300.0
 
 var level := 1
 var tubes: Array = []
@@ -29,6 +40,7 @@ var history: Array = []
 var extra_used := false
 var won := false
 var sound_on := true
+var in_shell := false
 ## Active pour streams keyed by source bottle index.
 var streams := {}
 
@@ -41,12 +53,13 @@ var btn_add: IconButton
 var btn_restart: IconButton
 var btn_sound: IconButton
 var win_panel: ColorRect
-var win_title: Label
+var btn_next: IconButton
 var music: AudioStreamPlayer
 var sfx := {}
 
 
 func _ready() -> void:
+	in_shell = Engine.has_meta(SHELL_META) and bool(Engine.get_meta(SHELL_META))
 	_load()
 	bottle_layer = Node2D.new()
 	add_child(bottle_layer)
@@ -102,12 +115,16 @@ func _layout_bottles(animate: bool) -> void:
 	if n == 0:
 		return
 	var vs := get_viewport_rect().size
-	var rows := 1 if n <= 5 else 2
+	# Each bottle owns a full-width column at least HIT px wide as its hit area.
+	var max_per := clampi(floori(vs.x / HIT), 1, MAX_PER_ROW)
+	var rows := ceili(float(n) / max_per)
 	var per := ceili(float(n) / rows)
-	var top := 330.0
-	var bottom := vs.y - 280.0
+	var top := BOTTLES_TOP
+	var bottom := _action_row_y() - 40.0
 	var bottle_h := Bottle.HB + 16.0
 	var cell_w := minf(vs.x - 40.0, 1060.0) / per
+	if cell_w < HIT:
+		cell_w = vs.x / per
 	var gap := 120.0
 	var sc := minf(1.2, cell_w / (Bottle.W + 46.0))
 	sc = minf(sc, (bottom - top) / (rows * bottle_h + (rows - 1) * gap))
@@ -121,6 +138,7 @@ func _layout_bottles(animate: bool) -> void:
 			var x := vs.x * 0.5 + (k - (count - 1) * 0.5) * cell_w
 			b.home = Vector2(x, y0 + r * (bottle_h + gap) * sc)
 			b.scale = Vector2(sc, sc)
+			b.hit_w = cell_w
 			var dest := b.home - Vector2(0, LIFT * sc) if idx == selected else b.home
 			if animate and not b.busy:
 				create_tween().tween_property(b, "position", dest, 0.25).set_trans(Tween.TRANS_SINE)
@@ -373,7 +391,6 @@ func _win() -> void:
 	_play("win")
 	_confetti()
 	await get_tree().create_timer(0.9).timeout
-	win_title.text = "Level %d\ncomplete!" % level
 	win_panel.visible = true
 	win_panel.modulate.a = 0.0
 	create_tween().tween_property(win_panel, "modulate:a", 1.0, 0.3)
@@ -446,17 +463,16 @@ func _build_ui() -> void:
 	add_child(ui)
 	level_label = Label.new()
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	level_label.add_theme_font_size_override("font_size", 66)
+	level_label.add_theme_font_size_override("font_size", 84)
 	level_label.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
 	level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(level_label)
 
-	btn_restart = _make_button("restart", "", restart)
-	btn_sound = _make_button("sound_on", "", _toggle_sound)
-	btn_undo = _make_button("undo", "Undo", undo)
-	btn_add = _make_button("add", "+1 Bottle", add_bottle)
-	btn_add.custom_minimum_size = Vector2(170, 130)
-	btn_add.size = btn_add.custom_minimum_size
+	btn_restart = _make_button("restart", restart)
+	btn_sound = _make_button("sound_on", _toggle_sound)
+	btn_sound.visible = not in_shell
+	btn_undo = _make_button("undo", undo)
+	btn_add = _make_button("add", add_bottle)
 
 	win_panel = ColorRect.new()
 	win_panel.color = Color(0.02, 0.06, 0.1, 0.72)
@@ -467,32 +483,27 @@ func _build_ui() -> void:
 	box.add_theme_constant_override("separation", 70)
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	win_panel.add_child(box)
-	win_title = Label.new()
-	win_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	win_title.add_theme_font_size_override("font_size", 92)
-	win_title.add_theme_color_override("font_color", Color(1, 0.97, 0.88))
-	box.add_child(win_title)
-	var next := Button.new()
-	next.text = "Next"
-	next.custom_minimum_size = Vector2(440, 150)
-	next.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	next.add_theme_font_size_override("font_size", 64)
-	for state in ["normal", "hover", "pressed", "focus"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color("2fa36b") if state != "pressed" else Color("258555")
-		sb.set_corner_radius_all(75)
-		next.add_theme_stylebox_override(state, sb)
-	next.add_theme_color_override("font_color", Color.WHITE)
-	next.pressed.connect(next_level)
-	box.add_child(next)
+	# Win screen without words: a star, then one big green arrow.
+	var star := IconButton.new()
+	star.kind = "star"
+	star.custom_minimum_size = Vector2(300, 300)
+	star.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	star.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(star)
+	btn_next = IconButton.new()
+	btn_next.kind = "next"
+	btn_next.accent = Color(0.184, 0.639, 0.42)
+	btn_next.custom_minimum_size = Vector2(340, 340)
+	btn_next.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn_next.pressed.connect(next_level)
+	box.add_child(btn_next)
 	win_panel.visible = false
 	_layout_ui()
 
 
-func _make_button(kind: String, caption: String, cb: Callable) -> IconButton:
+func _make_button(kind: String, cb: Callable) -> IconButton:
 	var b := IconButton.new()
 	b.kind = kind
-	b.caption = caption
 	b.pressed.connect(cb)
 	ui.add_child(b)
 	return b
@@ -500,20 +511,26 @@ func _make_button(kind: String, caption: String, cb: Callable) -> IconButton:
 
 func _layout_ui() -> void:
 	var vs := get_viewport_rect().size
-	level_label.position = Vector2(0, 150)
-	level_label.size = Vector2(vs.x, 90)
-	# Right half, beside the sound button: the top-left 232 px square stays free
-	# for the MWM Play home button.
-	btn_restart.position = Vector2(vs.x - 314, 130)
-	btn_sound.position = Vector2(vs.x - 164, 130)
-	btn_undo.position = Vector2(vs.x * 0.5 - 200, vs.y - 230)
-	btn_add.position = Vector2(vs.x * 0.5 + 40, vs.y - 230)
+	level_label.position = Vector2(0, (HIT - 120.0) * 0.5)
+	level_label.size = Vector2(vs.x, 120)
+	# Top-right corner, hit areas running to the screen edge (the top-left
+	# 232 px square stays free for the MWM Play home button).
+	btn_sound.position = Vector2(vs.x - HIT, 0)
+	btn_restart.position = Vector2(vs.x - HIT * (1.0 if in_shell else 2.0), 0)
+	# Undo and extra bottle sit just above the wrist strip.
+	var row_y := _action_row_y()
+	btn_undo.position = Vector2(vs.x * 0.5 - HIT - 40.0, row_y)
+	btn_add.position = Vector2(vs.x * 0.5 + 40.0, row_y)
 	win_panel.position = Vector2.ZERO
 	win_panel.size = vs
 
 
+func _action_row_y() -> float:
+	return get_viewport_rect().size.y - WRIST - HIT - 8.0
+
+
 func _refresh_ui() -> void:
-	level_label.text = "Level %d" % level
+	level_label.text = str(level)
 	btn_undo.disabled = history.is_empty()
 	btn_add.disabled = extra_used
 	btn_sound.kind = "sound_on" if sound_on else "sound_off"
@@ -549,19 +566,24 @@ func _build_audio() -> void:
 	music.volume_db = -12.0
 	music.finished.connect(_on_music_finished)
 	add_child(music)
-	if sound_on and music.stream:
+	if _sound_allowed() and music.stream:
 		music.play()
 
 
 func _on_music_finished() -> void:
-	if sound_on:
+	if _sound_allowed():
 		music.play()
 
 
 func _play(key: String, pitch: float = 1.0) -> void:
-	if sound_on and sfx.has(key):
+	if _sound_allowed() and sfx.has(key):
 		sfx[key].pitch_scale = pitch
 		sfx[key].play()
+
+
+## Inside the host the host's buses rule; the saved own switch is ignored.
+func _sound_allowed() -> bool:
+	return in_shell or sound_on
 
 
 func _load() -> void:

@@ -16,6 +16,8 @@ var palette: Array = []
 ## Visual runs, bottom first: [color_id, amount_in_units]. Animations edit these.
 var segs: Array = []
 var home := Vector2.ZERO
+## Width of the tap area in screen px (the layout column), at least 12.7 mm.
+var hit_w := 0.0
 var busy := false
 var corked := false
 var cork_t := 1.0
@@ -60,7 +62,8 @@ func surface_global() -> Vector2:
 
 func hit_rect() -> Rect2:
 	var s := scale.x
-	return Rect2(home + Vector2(-W * 0.5 - 22, -40) * s, Vector2(W + 44, HB + 70) * s)
+	var w := maxf(hit_w, (W + 44) * s)
+	return Rect2(home + Vector2(-w * 0.5, -40 * s), Vector2(w, (HB + 70) * s))
 
 
 func set_corked(on: bool, animate: bool) -> void:
@@ -86,14 +89,15 @@ func _draw() -> void:
 		var amount: float = s[1]
 		if amount <= 0.001:
 			continue
-		total += amount
-		var t := _level_for(g, total)
+		var t := _level_for(g, total + amount)
 		var poly := _clip(_inner, g, t)
 		if upper != INF:
 			poly = _clip(poly, -g, -upper)
 		if poly.size() >= 3:
 			var col: Color = palette[s[0]]
 			draw_colored_polygon(poly, col)
+			_draw_marks(s[0], col, poly, g, total, amount)
+		total += amount
 		upper = t
 	# Thin bright line on the liquid surface.
 	if total > 0.01:
@@ -110,6 +114,69 @@ func _draw() -> void:
 	draw_line(Vector2(-r + 25, 30), Vector2(-r + 25, 90), Color(1, 1, 1, 0.16), 4.0, true)
 	if corked:
 		_draw_cork(r)
+
+
+## Colour is never the only cue: one symbol per whole unit of liquid, its shape
+## fixed per colour (red is a dot, orange a triangle, and so on).
+func _draw_marks(
+	id: int, col: Color, poly: PackedVector2Array, g: Vector2, below: float, amount: float
+) -> void:
+	var ink := Color(1, 1, 1, 0.85) if col.get_luminance() < 0.6 else Color(0.08, 0.1, 0.14, 0.7)
+	var units := floori(amount + 0.25)
+	for k in range(units):
+		var lvl := _level_for(g, below + k + 0.5)
+		if absf(g.y) < 0.2:
+			continue
+		var p := Vector2(0.0, lvl / g.y)
+		if Geometry2D.is_point_in_polygon(p, poly):
+			_mark(id, p, ink)
+
+
+func _mark(id: int, p: Vector2, ink: Color) -> void:
+	var r := 13.0
+	match id % 12:
+		0:  # red: dot
+			draw_circle(p, r, ink)
+		1:  # orange: triangle
+			_poly(p, r * 1.3, 3, -PI * 0.5, ink)
+		2:  # yellow: square
+			draw_rect(Rect2(p - Vector2(r, r) * 0.85, Vector2(r, r) * 1.7), ink)
+		3:  # lime: diamond
+			_poly(p, r * 1.25, 4, 0.0, ink)
+		4:  # green: plus
+			draw_line(p - Vector2(r, 0), p + Vector2(r, 0), ink, 7.0)
+			draw_line(p - Vector2(0, r), p + Vector2(0, r), ink, 7.0)
+		5:  # teal: ring
+			draw_arc(p, r * 0.85, 0, TAU, 20, ink, 5.0, true)
+		6:  # sky: cross
+			var d := r * 0.75
+			draw_line(p + Vector2(-d, -d), p + Vector2(d, d), ink, 6.0)
+			draw_line(p + Vector2(d, -d), p + Vector2(-d, d), ink, 6.0)
+		7:  # blue: two dots
+			draw_circle(p - Vector2(r * 0.8, 0), r * 0.5, ink)
+			draw_circle(p + Vector2(r * 0.8, 0), r * 0.5, ink)
+		8:  # pink: hollow square
+			draw_rect(Rect2(p - Vector2(r, r) * 0.8, Vector2(r, r) * 1.6), ink, false, 5.0)
+		9:  # brown: star
+			var pts := PackedVector2Array()
+			for i in range(10):
+				var a := -PI * 0.5 + PI * i / 5.0
+				pts.append(p + Vector2(cos(a), sin(a)) * (r * 1.3 if i % 2 == 0 else r * 0.55))
+			draw_colored_polygon(pts, ink)
+		10:  # purple: two bars
+			draw_line(p + Vector2(-r, -5), p + Vector2(r, -5), ink, 5.0)
+			draw_line(p + Vector2(-r, 6), p + Vector2(r, 6), ink, 5.0)
+		11:  # cream: three dots
+			for dx in [-r, 0.0, r]:
+				draw_circle(p + Vector2(dx, 0), r * 0.35, ink)
+
+
+func _poly(p: Vector2, r: float, sides: int, a0: float, ink: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in range(sides):
+		var a := a0 + TAU * i / sides
+		pts.append(p + Vector2(cos(a), sin(a)) * r)
+	draw_colored_polygon(pts, ink)
 
 
 func _draw_cork(r: float) -> void:

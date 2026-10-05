@@ -18,6 +18,7 @@ A color-sorting water puzzle for Android. Tap a bottle, then tap another, and th
 - Unlimited undo, one free extra bottle per level, restart.
 - Corked bottles and sparkles when a color is complete, confetti on level complete.
 - Calm music loop and water sounds (synthesised by `tools/make_audio.py`), one tap to mute.
+- Made for small children too: no words on buttons (icons only), every button and bottle is a tap area of at least 12.7 mm (216 px at 1080 wide), buttons act on release, nothing to tap in the bottom 256 px where a palm rests, and every liquid colour carries its own symbol (dot, triangle, square, ...) for colour-blind players.
 - Works offline; progress is saved on the phone.
 
 ## Build
@@ -29,6 +30,16 @@ Local playthrough test (plays a solver solution through the tap API and saves sc
 ```bash
 CAPTURE_DIR=/tmp/shots CAPTURE_LEVEL=8 godot --path . --resolution 1080x1920 res://tests/capture.tscn
 ```
+
+## Running inside a host app
+
+A host app (MWM Play) sets one flag before it loads `scenes/Game.tscn`:
+
+```gdscript
+Engine.set_meta(&"mwm_play_shell", true)   # remove_meta when the game closes
+```
+
+With the flag the game hides its own sound button, ignores its saved mute, and always plays; the host routes the players to its own Music and Sfx buses. Without the flag (the standalone APK) nothing changes.
 
 ## License
 
