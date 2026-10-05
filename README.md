@@ -16,6 +16,7 @@ A color-sorting water puzzle for Android. Tap a bottle, then tap another, and th
 - Difficulty ramps from 2 colors to 12 colors by level 27, with 4 units per bottle and 2 empty bottles.
 - Tilting pour animation: the liquid keeps a level surface and its volume while the bottle tips.
 - Unlimited undo, one free extra bottle per level, restart.
+- On phones with a notch or punch-hole camera the restart and sound buttons and the level number move below the display safe area; their touch areas still run to the top edge.
 - Corked bottles and sparkles when a color is complete, confetti on level complete.
 - Calm music loop and water sounds (synthesised by `tools/make_audio.py`), one tap to mute.
 - Made for small children too: no words on buttons (icons only), every button and bottle is a tap area of at least 12.7 mm (216 px at 1080 wide), buttons act on release, nothing to tap in the bottom 256 px where a palm rests, and every liquid colour carries its own symbol (dot, triangle, square, ...) for colour-blind players.

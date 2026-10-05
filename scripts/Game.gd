@@ -31,6 +31,9 @@ const HIT := 216.0
 const WRIST := 256.0
 const MAX_PER_ROW := 5
 const BOTTLES_TOP := 300.0
+## Top of the top-row discs (radius 0.36 x HIT around y = HIT / 2). A camera
+## cutout deeper than this pushes the top row down by the difference.
+const TOP_ROW_CLEAR := 30.0
 
 var level := 1
 var tubes: Array = []
@@ -41,6 +44,8 @@ var extra_used := false
 var won := false
 var sound_on := true
 var in_shell := false
+## Test hook: a fake top safe-area inset in window px; < 0 = ask the display.
+var fake_safe_top := -1.0
 ## Active pour streams keyed by source bottle index.
 var streams := {}
 
@@ -119,7 +124,7 @@ func _layout_bottles(animate: bool) -> void:
 	var max_per := clampi(floori(vs.x / HIT), 1, MAX_PER_ROW)
 	var rows := ceili(float(n) / max_per)
 	var per := ceili(float(n) / rows)
-	var top := BOTTLES_TOP
+	var top := BOTTLES_TOP + _top_shift()
 	var bottom := _action_row_y() - 40.0
 	var bottle_h := Bottle.HB + 16.0
 	var cell_w := minf(vs.x - 40.0, 1060.0) / per
@@ -511,10 +516,16 @@ func _make_button(kind: String, cb: Callable) -> IconButton:
 
 func _layout_ui() -> void:
 	var vs := get_viewport_rect().size
-	level_label.position = Vector2(0, (HIT - 120.0) * 0.5)
+	var dy := _top_shift()
+	level_label.position = Vector2(0, (HIT - 120.0) * 0.5 + dy)
 	level_label.size = Vector2(vs.x, 120)
 	# Top-right corner, hit areas running to the screen edge (the top-left
-	# 232 px square stays free for the MWM Play home button).
+	# 232 px square stays free for the MWM Play home button). Below a camera
+	# cutout the discs move down; the hit areas still start at the top edge.
+	for b in [btn_sound, btn_restart]:
+		b.top_pad = dy
+		b.size = Vector2(HIT, HIT + dy)
+		b.queue_redraw()
 	btn_sound.position = Vector2(vs.x - HIT, 0)
 	btn_restart.position = Vector2(vs.x - HIT * (1.0 if in_shell else 2.0), 0)
 	# Undo and extra bottle sit just above the wrist strip.
@@ -523,6 +534,26 @@ func _layout_ui() -> void:
 	btn_add.position = Vector2(vs.x * 0.5 + 40.0, row_y)
 	win_panel.position = Vector2.ZERO
 	win_panel.size = vs
+
+
+## How far the top row moves down for a notch or punch-hole camera.
+func _top_shift() -> float:
+	return maxf(0.0, safe_top_inset() - TOP_ROW_CLEAR)
+
+
+## Depth of the top screen cutout in viewport px (0 on desktop and on phones
+## without a cutout in the drawn area). Uses the display safe area on phones,
+## or fake_safe_top in tests.
+func safe_top_inset() -> float:
+	var top_px := fake_safe_top
+	if top_px < 0.0:
+		if not OS.has_feature("mobile"):
+			return 0.0
+		top_px = float(DisplayServer.get_display_safe_area().position.y)
+	var win := DisplayServer.window_get_size()
+	if win.y <= 0:
+		return 0.0
+	return maxf(0.0, top_px * get_viewport_rect().size.y / float(win.y))
 
 
 func _action_row_y() -> float:

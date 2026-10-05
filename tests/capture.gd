@@ -2,8 +2,9 @@ extends Node
 
 ## Dev-only: boots the game, checks a real touch selects a bottle, checks the
 ## buttons fire on release only, prints every hit area in mm, then plays a
-## solver-found solution through the tap API and saves screenshots. Run under
-## Xvfb. CAPTURE_SHELL=1 runs it as if inside MWM Play (no sound button).
+## solver-found solution through the tap API and saves screenshots, last with
+## a fake 120 px top cutout. Run under Xvfb. CAPTURE_SHELL=1 runs it as if
+## inside MWM Play (no sound button).
 
 var out_dir: String = OS.get_environment("CAPTURE_DIR")
 
@@ -82,6 +83,17 @@ func _ready() -> void:
 	await _frames(30)
 	await _shot("08_level30_extra")
 	_measure(game, "level 30 + extra")
+	# Fake 120 px camera cutout: top row moves down, hit areas keep the edge.
+	game.start_level(8)
+	game.fake_safe_top = 120.0
+	game._on_resize()
+	await _frames(10)
+	await _shot("09_inset120_level8")
+	_measure(game, "level 8, fake 120 px top inset")
+	print("INSET level label top y %.0f" % game.level_label.position.y)
+	game.fake_safe_top = -1.0
+	game._on_resize()
+	await _frames(30)
 	var cfg := ConfigFile.new()
 	print(
 		"SAVE ",

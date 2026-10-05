@@ -15,6 +15,9 @@ const HIT := 216.0
 ## Filled disc colour; transparent keeps the default glass disc.
 var accent := Color(0, 0, 0, 0)
 var disabled := false
+## Extra hit area above the disc (px): a top-row button pushed below a camera
+## cutout keeps its touch area running to the screen edge.
+var top_pad := 0.0
 var _held := false
 var _press := 0.0
 
@@ -52,8 +55,8 @@ func _set_press(v: float) -> void:
 
 
 func _draw() -> void:
-	var c := size * 0.5
-	var rad := minf(size.x, size.y) * 0.36 * (1.0 - 0.1 * _press)
+	var c := Vector2(size.x * 0.5, top_pad + (size.y - top_pad) * 0.5)
+	var rad := minf(size.x, size.y - top_pad) * 0.36 * (1.0 - 0.1 * _press)
 	var alpha := 0.35 if disabled else 1.0
 	if accent.a > 0.0:
 		var fill := accent.darkened(0.2) if _press > 0.0 else accent
